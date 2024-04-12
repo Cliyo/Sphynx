@@ -9,6 +9,9 @@
 
 #define SS_PIN 5
 #define RST_PIN 4
+#define MISO_PIN  19 
+#define MOSI_PIN  23  
+#define SCK_PIN   18
 
 #define button 21
 
@@ -65,7 +68,6 @@ void controlDoor(String message){
 }
 
 void sphynx(){
-  // Sphynx default operation
   Serial.println("Sphynx Begun");
   SPI.begin();
   rfid.PCD_Init();
@@ -75,7 +77,7 @@ void sphynx(){
   pinMode(led, OUTPUT);
   pinMode(button, INPUT);
 
-  Serial.println("Versão Firmware RC522");
+  Serial.print("RC522 ");
   rfid.PCD_DumpVersionToSerial();
 
   ws.onEvent(onWsEvent);
@@ -88,17 +90,17 @@ void sphynx(){
 
 void setup(){
   Serial.begin(115200);
-  if (SphynxWiFi.connect() != 0) {
+  if (!SphynxWiFi.connect()) {
     SphynxWiFi.setupWiFi();
   }
-  while (SphynxWiFi.status() != WL_CONNECTED){
+  while (!SphynxWiFi.conectado()){
+    delay(500);
     continue;
   }
   sphynx();
 }
 
 void loop(){
-  // rfid.PCD_DumpVersionToSerial();
   if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()){
     Serial.println("Coloque o cartão no Leitor.");
     
@@ -116,6 +118,9 @@ void loop(){
     Serial.println(id_cartao.substring(1));
     
   }
+  // else{
+  //   rfid.PCD_DumpVersionToSerial();
+  // }
 
   if(digitalRead(button) == 0){
     return;

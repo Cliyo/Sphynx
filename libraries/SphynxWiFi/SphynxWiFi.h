@@ -23,9 +23,11 @@ class SphynxWiFiClass
 
         void setupWiFi();
         void scan();
-        int connect();
-        int status();
-        void saveCredentials();
+        bool connect();
+        bool conectado();
+        void saveCredentials(bool conectar);
+        void saveCredentials(bool conectar, char* ssid, char* senha);
+        void getCredentials();
     private:
         //   const char* hostname = "sphynx-dev";
 };

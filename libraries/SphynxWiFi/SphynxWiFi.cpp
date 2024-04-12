@@ -274,10 +274,11 @@ String htmlFooter = R"footer(</tbody>
 String indexHtml;
 String ssid;
 String senha;
+bool statusConexao = false;
 
 SphynxWiFiClass::SphynxWiFiClass(){}
 
-int SphynxWiFiClass::connect() {
+bool SphynxWiFiClass::connect() {
     WiFiPreferences.begin("WiFiCred", true);
 
     ssid = WiFiPreferences.getString("ssid", "");
@@ -286,7 +287,7 @@ int SphynxWiFiClass::connect() {
     WiFiPreferences.end();
 
     if (ssid == "" || senha == ""){
-        return 1;
+        return false;
     }
     WiFi.begin(ssid, senha);
     // Tries to connect to the specified wifi
@@ -297,12 +298,11 @@ int SphynxWiFiClass::connect() {
         tentativas++;
     }
     if (tentativas > 15){
-        Serial.println("Não foi possível se conectar ao WiFI");
         WiFi.disconnect();
-        return 1;
+        return false;
     }else{
         try {
-            if (WiFi.softAPdisconnect(true) != 0) {
+            if (!WiFi.softAPdisconnect(true)) {
                 throw "Nenhum AP encontrado";
             }
             apServer.end();
@@ -316,45 +316,62 @@ int SphynxWiFiClass::connect() {
         WiFi.setHostname("Sphynx");
         Serial.print("Hostname:");
         Serial.println(WiFi.getHostname());
-        return 0;
+        if (WiFi.status() == WL_CONNECTED){
+            statusConexao = true;
+        }
+        return true;
     }
 }
 
-void SphynxWiFiClass::saveCredentials(){
-    apServer.on("/post", HTTP_POST,[](AsyncWebServerRequest * request){
+void SphynxWiFiClass::getCredentials(){
+    apServer.on("/post", HTTP_POST,[&](AsyncWebServerRequest * request){
         if(request->hasParam("ssid", true) && request->hasParam("password", true)){
             Serial.println("RECEBEU OS PARAMETROS");
             ssid = request->getParam("ssid", true)->value();
+            senha = request->getParam("password", true)->value();;
             Serial.println("OK");
-            senha = request->getParam("password", true)->value();
-            Serial.println("OK");
-
         }else{
             Serial.println("Não foi possível pegar SSID e SENHA");
             return;
         }
+        
+        saveCredentials(true);
+    });
+}
 
+void SphynxWiFiClass::saveCredentials(bool conectar){
         WiFiPreferences.begin("WiFiCred", false);
         WiFiPreferences.clear();
         WiFiPreferences.putString("ssid", ssid);
         WiFiPreferences.putString("senha", senha);
 
         WiFiPreferences.end();
-        SphynxWiFi.connect();
-    });
+
+        Serial.println("Credenciais Salvas");
+        if (conectar){
+            SphynxWiFi.connect();
+        }
+        return;
+}
+
+void SphynxWiFiClass::saveCredentials(bool conectar, char* ssid, char* senha){
+    ssid = ssid;
+    senha = senha;
+
+    saveCredentials(conectar);
+    return;
 }
 
 void SphynxWiFiClass::scan() {
   // WiFi config Web Server
   apServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-   String linhas = ""; 
+   String linhas = "";
    if(WiFi.scanComplete() == -2){
     WiFi.scanNetworks(true);
     linhas += ("<tr><td>Procurando</td><td>Procurando</td><td> <a class='correct'>Procurando</a> </tr>");
    }else if (WiFi.scanComplete() == -1){
     linhas += ("<tr><td>Procurando</td><td>Procurando</td><td> <a class='correct'>Procurando</a> </tr>");
    }else{
-    Serial.print("Encontrado ");
     Serial.print(WiFi.scanComplete());
     Serial.println(" redes WiFi na area");
     for (int i = 0; i < WiFi.scanComplete(); ++i) {
@@ -369,12 +386,9 @@ void SphynxWiFiClass::scan() {
 }
 
 void SphynxWiFiClass::setupWiFi() {
-    Serial.println("Configurando Access Point...");
     WiFi.softAP(ssidAP, senhaAP);
 
     IPAddress IP = WiFi.softAPIP();
-    Serial.print("Endereco IP do AP: ");
-    Serial.println(IP);
 
     if (!MDNS.begin("Sphynx-dev")) {
         Serial.println("Erro ao iniciar mDNS");
@@ -382,11 +396,12 @@ void SphynxWiFiClass::setupWiFi() {
     }
     apServer.begin();
     scan(); //Starts AP Mode server. Connects to 192.168.4.1 or sphynx-dev.local
-    saveCredentials();
+    getCredentials();
+    return;
 }
 
-int SphynxWiFiClass::status() {
-    return WiFi.status();
+bool SphynxWiFiClass::conectado() {
+    return statusConexao;
 }
 
 SphynxWiFiClass SphynxWiFi;
