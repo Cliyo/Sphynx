@@ -29,7 +29,7 @@ AsyncWebSocket ws("/ws");
 void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
   if(type == WS_EVT_CONNECT){
     Serial.println("Websocket client connection received");
-    ws.textAll("$2a$12$X9my8HHbMJYk6y04FnR6ie1B/WnLOlBAeEMRhEOvt.8z/OmOR6kLS");
+    ws.textAll("data");
   }      
    
   else if(type == WS_EVT_DISCONNECT){
@@ -82,6 +82,8 @@ void sphynx(){
 
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
+
+  server.begin();
  
   server.on("/conectar", HTTP_GET, [](AsyncWebServerRequest * request) {
   request->send(200, "text/plain", "Clyio - Sphynx");
@@ -128,5 +130,5 @@ void loop(){
     ws.textAll("abc");
   }
   
-  delay(500);
+  delay(2000);
 }
