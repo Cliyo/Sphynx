@@ -23,6 +23,8 @@ int acionador = 15;
 
 String message;
 
+IPAddress api(0, 0, 0, 0);;
+
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
@@ -84,7 +86,7 @@ void sphynx(){
   server.addHandler(&ws);
 
   server.begin();
- 
+
   server.on("/conectar", HTTP_GET, [](AsyncWebServerRequest * request) {
   request->send(200, "text/plain", "Clyio - Sphynx");
   });
@@ -103,6 +105,12 @@ void setup(){
 }
 
 void loop(){
+  while (api[0] == 0){
+    api = SphynxWiFi.getApiAddress();
+  }
+
+  // Serial.println(api);
+
   if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()){
     Serial.println("Coloque o cartão no Leitor.");
     

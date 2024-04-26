@@ -404,4 +404,24 @@ bool SphynxWiFiClass::conectado() {
     return statusConexao;
 }
 
+IPAddress SphynxWiFiClass::getApiAddress(){
+    IPAddress zero(0,0,0,0);
+
+    if(mdns_init() == ESP_OK){
+
+        int services = MDNS.queryService("http", "tcp");
+
+        if (services > 0) {
+            for (int i = 0; i < services; ++i) {
+                if (MDNS.hasTxt(i, "Sphynx API")){
+                    return MDNS.IP(i);
+                }
+            }
+        }
+    }
+    
+
+    return zero;
+}
+
 SphynxWiFiClass SphynxWiFi;
