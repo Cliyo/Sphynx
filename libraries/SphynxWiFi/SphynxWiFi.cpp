@@ -424,4 +424,8 @@ IPAddress SphynxWiFiClass::getApiAddress(){
     return zero;
 }
 
+String SphynxWiFiClass::getMac(){
+    return WiFi.macAddress().toString();
+} 
+
 SphynxWiFiClass SphynxWiFi;

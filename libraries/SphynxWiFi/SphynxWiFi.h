@@ -29,6 +29,7 @@ class SphynxWiFiClass
         void saveCredentials(bool conectar, char* ssid, char* senha);
         void getCredentials();
         IPAddress getApiAddress();
+        String getMac();
     private:
         //   const char* hostname = "sphynx-dev";
 };

@@ -1,5 +1,7 @@
 #include "SphynxWiFi.h"
 #include "ESPAsyncWebServer.h"
+#include <HTTPClient.h>
+#include <Arduino_JSON.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -23,7 +25,7 @@ int acionador = 15;
 
 String message;
 
-IPAddress api(0, 0, 0, 0);;
+IPAddress api(0, 0, 0, 0);
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -109,7 +111,15 @@ void loop(){
     api = SphynxWiFi.getApiAddress();
   }
 
-  // Serial.println(api);
+  HTTPClient http;
+
+  Serial.println("http://" + api.toString() + ":8080/accessRegister");
+
+  http.begin("http://" + api.toString() + ":8080/accessRegister");
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Access-Control-Allow-Credentials", "true");
+  http.addHeader("Access-Control-Allow-Origin", "*");
 
   if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()){
     Serial.println("Coloque o cartão no Leitor.");
@@ -126,16 +136,29 @@ void loop(){
       
     id_cartao.toUpperCase();
     Serial.println(id_cartao.substring(1));
-    
-  }
-  // else{
-  //   rfid.PCD_DumpVersionToSerial();
-  // }
 
-  if(digitalRead(button) == 0){
-    return;
-  }else{
-    ws.textAll("abc");
+    String json = "{\"mac\":\"dsadsa\",\"tag\":\"dsada\"}";
+
+    Serial.println(SphynxWiFi.getMac());
+
+    int httpResponseCode = http.POST(json);
+    Serial.println(json);
+
+    if(httpResponseCode > 0) {
+      String payload = http.getString();
+      Serial.println(httpResponseCode);
+      Serial.println(payload);
+    } 
+    
+    else {
+      Serial.println("Error on HTTP request");
+      Serial.println(http.errorToString(httpResponseCode).c_str());
+    }
+
+    http.end();
+
+
+    
   }
   
   delay(2000);
