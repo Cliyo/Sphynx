@@ -306,6 +306,8 @@ bool SphynxWiFiClass::connect() {
                 throw "Nenhum AP encontrado";
             }
             apServer.end();
+            MDNS.end();
+
         } catch (const char* error) {
             Serial.println(error);
         }
@@ -313,10 +315,11 @@ bool SphynxWiFiClass::connect() {
         Serial.println(WiFi.localIP());
         Serial.print("Endereço MAC:");
         Serial.println(WiFi.macAddress());
-        WiFi.setHostname("Sphynx");
-        Serial.print("Hostname:");
-        Serial.println(WiFi.getHostname());
+        String hostname = "sphynx-"+WiFi.macAddress();
+        hostname.replace(":","-");
+
         if (WiFi.status() == WL_CONNECTED){
+            setMDNS(hostname);
             statusConexao = true;
         }
         return true;
@@ -425,7 +428,26 @@ IPAddress SphynxWiFiClass::getApiAddress(){
 }
 
 String SphynxWiFiClass::getMac(){
-    return WiFi.macAddress().toString();
+    return WiFi.macAddress();
 } 
 
 SphynxWiFiClass SphynxWiFi;
+
+void SphynxWiFiClass::setMDNS(String hostname){
+    esp_err_t err = mdns_init();
+    if (err) {
+        printf("MDNS falhou: %d\n", err);
+        return;
+    }
+
+    String mac = WiFi.macAddress();
+    String ip = WiFi.localIP().toString();
+
+    mdns_hostname_set(hostname.c_str());
+    mdns_txt_item_t serviceTxtData[3] = {
+        {"host",hostname.c_str()},
+        {"ip",ip.c_str()},
+        {"mac",mac.c_str()}
+    };
+    mdns_service_add("sphynx-device", "_cliyo-sphynx", "_tcp", 80, serviceTxtData, 3);
+}

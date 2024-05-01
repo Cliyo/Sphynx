@@ -25,7 +25,7 @@ int acionador = 15;
 
 String message;
 
-IPAddress api(0, 0, 0, 0);
+// IPAddress api(0, 0, 0, 0);
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -71,6 +71,38 @@ void controlDoor(String message){
   }
 }
 
+void apiRequest(){
+  HTTPClient http;
+
+  Serial.println("http://sphynx-api.local/accessRegister");
+
+  http.begin("http://sphynx-api.local/accessRegister");
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Access-Control-Allow-Credentials", "true");
+  http.addHeader("Access-Control-Allow-Origin", "*");
+
+  String json = "{\"mac\":\"dsadsa\",\"tag\":\"dsada\"}";
+
+  Serial.println(SphynxWiFi.getMac());
+
+  int httpResponseCode = http.POST(json);
+  Serial.println(json);
+
+  if(httpResponseCode > 0) {
+    String payload = http.getString();
+    Serial.println(httpResponseCode);
+    Serial.println(payload);
+  } 
+  
+  else {
+    Serial.println("Error on HTTP request");
+    Serial.println(http.errorToString(httpResponseCode).c_str());
+  }
+
+  http.end();
+}
+
 void sphynx(){
   Serial.println("Sphynx Begun");
   SPI.begin();
@@ -107,19 +139,9 @@ void setup(){
 }
 
 void loop(){
-  while (api[0] == 0){
-    api = SphynxWiFi.getApiAddress();
-  }
-
-  HTTPClient http;
-
-  Serial.println("http://" + api.toString() + ":8080/accessRegister");
-
-  http.begin("http://" + api.toString() + ":8080/accessRegister");
-
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("Access-Control-Allow-Credentials", "true");
-  http.addHeader("Access-Control-Allow-Origin", "*");
+  // while (api[0] == 0){
+  //   api = SphynxWiFi.getApiAddress();
+  // }
 
   if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()){
     Serial.println("Coloque o cartão no Leitor.");
@@ -137,28 +159,7 @@ void loop(){
     id_cartao.toUpperCase();
     Serial.println(id_cartao.substring(1));
 
-    String json = "{\"mac\":\"dsadsa\",\"tag\":\"dsada\"}";
-
-    Serial.println(SphynxWiFi.getMac());
-
-    int httpResponseCode = http.POST(json);
-    Serial.println(json);
-
-    if(httpResponseCode > 0) {
-      String payload = http.getString();
-      Serial.println(httpResponseCode);
-      Serial.println(payload);
-    } 
-    
-    else {
-      Serial.println("Error on HTTP request");
-      Serial.println(http.errorToString(httpResponseCode).c_str());
-    }
-
-    http.end();
-
-
-    
+    apiRequest();
   }
   
   delay(2000);

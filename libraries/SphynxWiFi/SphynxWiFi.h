@@ -31,7 +31,7 @@ class SphynxWiFiClass
         IPAddress getApiAddress();
         String getMac();
     private:
-        //   const char* hostname = "sphynx-dev";
+        void setMDNS(String hostname);
 };
 extern SphynxWiFiClass SphynxWiFi;
 #endif
