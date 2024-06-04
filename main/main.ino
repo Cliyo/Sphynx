@@ -74,15 +74,15 @@ void controlDoor(String message){
 void apiRequest(){
   HTTPClient http;
 
-  Serial.println("http://sphynx-api.local/accessRegister");
+  Serial.println("http://sphynx-api.local:57128/accessRegisters");
 
-  http.begin("http://sphynx-api.local/accessRegister");
+  http.begin("http://sphynx-api.local:57128/accessRegisters");
 
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Access-Control-Allow-Credentials", "true");
   http.addHeader("Access-Control-Allow-Origin", "*");
 
-  String json = "{\"mac\":\"dsadsa\",\"tag\":\"dsada\"}";
+  String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\"dsada\"}";
 
   Serial.println(SphynxWiFi.getMac());
 
@@ -98,6 +98,7 @@ void apiRequest(){
   else {
     Serial.println("Error on HTTP request");
     Serial.println(http.errorToString(httpResponseCode).c_str());
+    Serial.println(httpResponseCode);
   }
 
   http.end();
