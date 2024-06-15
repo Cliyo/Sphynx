@@ -26,6 +26,8 @@ int acionador = 15;
 
 String message;
 
+bool cadastrarTag = false;
+
 // IPAddress api(0, 0, 0, 0);
 
 AsyncWebServer server(80);
@@ -126,6 +128,25 @@ void sphynx(){
   server.on("/conectar", HTTP_GET, [](AsyncWebServerRequest * request) {
   request->send(200, "text/plain", "Clyio - Sphynx");
   });
+
+  server.on("/tag", HTTP_GET, [](AsyncWebServerRequest * request) {
+  cadastrarTag = true;
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial() && cadastrarTag == true){
+    String id_cartao = "";
+    byte i;
+          
+    for (byte i = 0; i < rfid.uid.size; i++){
+      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
+      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
+    }
+      
+    id_cartao.toUpperCase();
+
+    String jsonTag = "{\"tag\":\"" + id_cartao.substring(1) + "\"}";
+    cadastrarTag=false;
+    request->send(200, "application/json", jsonTag);
+  }
+  });
 }
 
 void setup(){
@@ -144,8 +165,7 @@ void loop(){
   // while (api[0] == 0){
   //   api = SphynxWiFi.getApiAddress();
   // }
-
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()){
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial() && cadastrarTag == false){
     Serial.println("Coloque o cartão no Leitor.");
     
     String id_cartao = "";
