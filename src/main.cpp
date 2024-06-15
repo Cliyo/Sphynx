@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "SphynxWiFi.h"
 #include "ESPAsyncWebServer.h"
 #include <HTTPClient.h>
@@ -30,30 +31,6 @@ String message;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
-void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
-  if(type == WS_EVT_CONNECT){
-    Serial.println("Websocket client connection received");
-    ws.textAll("data");
-  }      
-   
-  else if(type == WS_EVT_DISCONNECT){
-    Serial.println("Client disconnected");
-  }
-
-  else if(type == WS_EVT_DATA){
-    handleWebSocketMessage(arg, data, len);
-  }
-}
-
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
-  AwsFrameInfo *info = (AwsFrameInfo*)arg;
-  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-    data[len] = 0;
-    message = (char*)data;
-    controlDoor(message);
-  }
-}
- 
 void controlDoor(String message){
   if(message == "true"){
     digitalWrite(led, !digitalRead(led));
@@ -68,6 +45,30 @@ void controlDoor(String message){
     digitalWrite(led, !digitalRead(led));  
     delay(500);
     digitalWrite(led, !digitalRead(led));  
+  }
+}
+
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
+  AwsFrameInfo *info = (AwsFrameInfo*)arg;
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+    data[len] = 0;
+    message = (char*)data;
+    controlDoor(message);
+  }
+}
+
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+  if(type == WS_EVT_CONNECT){
+    Serial.println("Websocket client connection received");
+    ws.textAll("data");
+  }      
+   
+  else if(type == WS_EVT_DISCONNECT){
+    Serial.println("Client disconnected");
+  }
+
+  else if(type == WS_EVT_DATA){
+    handleWebSocketMessage(arg, data, len);
   }
 }
 
