@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "SphynxWiFi.h"
 #include "ESPAsyncWebServer.h"
 #include <HTTPClient.h>
@@ -25,35 +26,16 @@ int acionador = 15;
 
 String message;
 
-// IPAddress api(0, 0, 0, 0);
-
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
-void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
-  if(type == WS_EVT_CONNECT){
-    Serial.println("Websocket client connection received");
-    ws.textAll("data");
-  }      
-   
-  else if(type == WS_EVT_DISCONNECT){
-    Serial.println("Client disconnected");
-  }
+enum Mode {
+  MODE_CONTROL_DOOR,
+  MODE_REGISTER_TAG,
+};
 
-  else if(type == WS_EVT_DATA){
-    handleWebSocketMessage(arg, data, len);
-  }
-}
+Mode currentMode = MODE_CONTROL_DOOR;
 
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
-  AwsFrameInfo *info = (AwsFrameInfo*)arg;
-  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-    data[len] = 0;
-    message = (char*)data;
-    controlDoor(message);
-  }
-}
- 
 void controlDoor(String message){
   if(message == "true"){
     digitalWrite(led, !digitalRead(led));
@@ -71,7 +53,36 @@ void controlDoor(String message){
   }
 }
 
-void apiRequest(){
+void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
+  AwsFrameInfo *info = (AwsFrameInfo*)arg;
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+    data[len] = 0;
+    message = (char*)data;
+    controlDoor(message);
+  }
+}
+
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+  if(type == WS_EVT_CONNECT){
+    Serial.println("Websocket client connection received");
+  }      
+  else if(type == WS_EVT_DISCONNECT){
+    Serial.println("Client disconnected");
+  }
+  else if(type == WS_EVT_DATA){
+    String message = (const char *)data;
+
+    if (message.substring(0, 4) == "data") {
+      ws.text(client->id(), "data");
+    }
+    else if (message.substring(0, 4) == "tags") {
+      currentMode = MODE_REGISTER_TAG;
+      Serial.println("Register Tag mode begin");
+    }
+  }
+}
+
+void apiRequest(String tag){
   HTTPClient http;
 
   Serial.println("http://sphynx-api.local:57128/accessRegisters");
@@ -82,7 +93,7 @@ void apiRequest(){
   http.addHeader("Access-Control-Allow-Credentials", "true");
   http.addHeader("Access-Control-Allow-Origin", "*");
 
-  String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\"dsada\"}";
+  String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\""+tag+"\"}";
 
   Serial.println(SphynxWiFi.getMac());
 
@@ -104,6 +115,34 @@ void apiRequest(){
   http.end();
 }
 
+void receiveTag(){
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+    String id_cartao = "";
+    for (byte i = 0; i < rfid.uid.size; i++) {
+      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
+      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
+    }
+    id_cartao.toUpperCase();
+
+    Serial.println(currentMode);
+
+    if (currentMode == MODE_REGISTER_TAG) {
+      ws.textAll(id_cartao);
+      Serial.println("Tag registering completed");
+      currentMode = MODE_CONTROL_DOOR;
+      Serial.println("Returning to control door mode");
+    }
+    else if (currentMode == MODE_CONTROL_DOOR) {
+      apiRequest(id_cartao);
+    }
+
+
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+  }
+  
+}
+
 void sphynx(){
   Serial.println("Sphynx Begun");
   SPI.begin();
@@ -121,10 +160,6 @@ void sphynx(){
   server.addHandler(&ws);
 
   server.begin();
-
-  server.on("/conectar", HTTP_GET, [](AsyncWebServerRequest * request) {
-  request->send(200, "text/plain", "Clyio - Sphynx");
-  });
 }
 
 void setup(){
@@ -144,24 +179,10 @@ void loop(){
   //   api = SphynxWiFi.getApiAddress();
   // }
 
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()){
-    Serial.println("Coloque o cartão no Leitor.");
-    
-    String id_cartao = "";
-    byte i;
-          
-    for (byte i = 0; i < rfid.uid.size; i++){
-      Serial.print(rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
-      Serial.print(rfid.uid.uidByte[i], HEX);
-      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
-      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
-    }
-      
-    id_cartao.toUpperCase();
-    Serial.println(id_cartao.substring(1));
+  // Serial.print("RC522 ");
+  // rfid.PCD_DumpVersionToSerial();
 
-    apiRequest();
-  }
+  receiveTag();
   
   delay(2000);
 }
