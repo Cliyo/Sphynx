@@ -26,10 +26,15 @@ int acionador = 15;
 
 String message;
 
-bool cadastrarTag = false;
-
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
+
+enum Mode {
+  MODE_CONTROL_DOOR,
+  MODE_REGISTER_TAG,
+};
+
+Mode currentMode = MODE_CONTROL_DOOR;
 
 void controlDoor(String message){
   if(message == "true"){
@@ -57,22 +62,27 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   }
 }
 
+
 void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
   if(type == WS_EVT_CONNECT){
     Serial.println("Websocket client connection received");
-    ws.textAll("data");
   }      
-   
   else if(type == WS_EVT_DISCONNECT){
     Serial.println("Client disconnected");
   }
-
   else if(type == WS_EVT_DATA){
-    handleWebSocketMessage(arg, data, len);
+    String message = (const char *)data;
+
+    if (message == "request_data") {
+      ws.text(client->id(), "data");
+    }
+    else if (message == "register_tag") {
+      currentMode = MODE_REGISTER_TAG;
+    }
   }
 }
 
-void apiRequest(){
+void apiRequest(String tag){
   HTTPClient http;
 
   Serial.println("http://sphynx-api.local:57128/accessRegisters");
@@ -83,7 +93,7 @@ void apiRequest(){
   http.addHeader("Access-Control-Allow-Credentials", "true");
   http.addHeader("Access-Control-Allow-Origin", "*");
 
-  String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\"dsada\"}";
+  String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\""+tag+"\"}";
 
   Serial.println(SphynxWiFi.getMac());
 
@@ -105,6 +115,30 @@ void apiRequest(){
   http.end();
 }
 
+void receiveTag(){
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+    String id_cartao = "";
+    for (byte i = 0; i < rfid.uid.size; i++) {
+      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
+      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
+    }
+    id_cartao.toUpperCase();
+
+    if (currentMode == MODE_REGISTER_TAG) {
+      ws.textAll(id_cartao);
+      currentMode = MODE_CONTROL_DOOR;
+    }
+    else if (currentMode == MODE_CONTROL_DOOR) {
+      apiRequest(id_cartao);
+    }
+
+
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+  }
+  
+}
+
 void sphynx(){
   Serial.println("Sphynx Begun");
   SPI.begin();
@@ -121,34 +155,7 @@ void sphynx(){
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
 
-  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "access-control-allow-credentials, access-control-allow-origin, content-type");
-  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Credentials", "true");
-  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
-  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET,POST");
   server.begin();
-
-  server.on("/conectar", HTTP_GET, [](AsyncWebServerRequest * request) {
-  request->send(200, "text/plain", "Clyio - Sphynx");
-  });
-
-  server.on("/tag", HTTP_GET, [](AsyncWebServerRequest * request) {
-    cadastrarTag = true;
-
-    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial() && cadastrarTag == true){
-      String id_cartao = "";
-      byte i;
-            
-      for (byte i = 0; i < rfid.uid.size; i++){
-        id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
-        id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
-      }
-        
-      id_cartao.toUpperCase();
-
-      cadastrarTag=false;
-      request->send(200, "text/plain", id_cartao.substring(1));
-    }
-  });
 }
 
 void setup(){
@@ -170,25 +177,8 @@ void loop(){
 
   // Serial.print("RC522 ");
   // rfid.PCD_DumpVersionToSerial();
-  
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial() && cadastrarTag == false){
-    Serial.println("Coloque o cartão no Leitor.");
-    
-    String id_cartao = "";
-    byte i;
-          
-    for (byte i = 0; i < rfid.uid.size; i++){
-      Serial.print(rfid.uid.uidByte[i] < 0x10 ? " 0" : " ");
-      Serial.print(rfid.uid.uidByte[i], HEX);
-      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
-      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
-    }
-      
-    id_cartao.toUpperCase();
-    Serial.println(id_cartao.substring(1));
 
-    apiRequest();
-  }
+  receiveTag();
   
   delay(2000);
 }
