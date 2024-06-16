@@ -28,8 +28,6 @@ String message;
 
 bool cadastrarTag = false;
 
-// IPAddress api(0, 0, 0, 0);
-
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
@@ -123,6 +121,10 @@ void sphynx(){
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
 
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "access-control-allow-credentials, access-control-allow-origin, content-type");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Credentials", "true");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+  DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET,POST");
   server.begin();
 
   server.on("/conectar", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -130,22 +132,22 @@ void sphynx(){
   });
 
   server.on("/tag", HTTP_GET, [](AsyncWebServerRequest * request) {
-  cadastrarTag = true;
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial() && cadastrarTag == true){
-    String id_cartao = "";
-    byte i;
-          
-    for (byte i = 0; i < rfid.uid.size; i++){
-      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
-      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
-    }
-      
-    id_cartao.toUpperCase();
+    cadastrarTag = true;
 
-    String jsonTag = "{\"tag\":\"" + id_cartao.substring(1) + "\"}";
-    cadastrarTag=false;
-    request->send(200, "application/json", jsonTag);
-  }
+    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial() && cadastrarTag == true){
+      String id_cartao = "";
+      byte i;
+            
+      for (byte i = 0; i < rfid.uid.size; i++){
+        id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
+        id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
+      }
+        
+      id_cartao.toUpperCase();
+
+      cadastrarTag=false;
+      request->send(200, "text/plain", id_cartao.substring(1));
+    }
   });
 }
 
@@ -165,6 +167,10 @@ void loop(){
   // while (api[0] == 0){
   //   api = SphynxWiFi.getApiAddress();
   // }
+
+  // Serial.print("RC522 ");
+  // rfid.PCD_DumpVersionToSerial();
+  
   if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial() && cadastrarTag == false){
     Serial.println("Coloque o cartão no Leitor.");
     
