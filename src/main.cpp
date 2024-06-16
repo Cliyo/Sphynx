@@ -62,7 +62,6 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   }
 }
 
-
 void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
   if(type == WS_EVT_CONNECT){
     Serial.println("Websocket client connection received");
@@ -73,11 +72,12 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   else if(type == WS_EVT_DATA){
     String message = (const char *)data;
 
-    if (message == "request_data") {
+    if (message.substring(0, 4) == "data") {
       ws.text(client->id(), "data");
     }
-    else if (message == "register_tag") {
+    else if (message.substring(0, 4) == "tags") {
       currentMode = MODE_REGISTER_TAG;
+      Serial.println("Register Tag mode begin");
     }
   }
 }
@@ -124,9 +124,13 @@ void receiveTag(){
     }
     id_cartao.toUpperCase();
 
+    Serial.println(currentMode);
+
     if (currentMode == MODE_REGISTER_TAG) {
       ws.textAll(id_cartao);
+      Serial.println("Tag registering completed");
       currentMode = MODE_CONTROL_DOOR;
+      Serial.println("Returning to control door mode");
     }
     else if (currentMode == MODE_CONTROL_DOOR) {
       apiRequest(id_cartao);
