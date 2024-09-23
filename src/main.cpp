@@ -78,6 +78,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
     else if (message.substring(0, 4) == "tags") {
       currentMode = MODE_REGISTER_TAG;
       Serial.println("Register Tag mode begin");
+      digitalWrite(led, !digitalRead(led));
     }
   }
 }
@@ -131,9 +132,18 @@ void receiveTag(){
       Serial.println("Tag registering completed");
       currentMode = MODE_CONTROL_DOOR;
       Serial.println("Returning to control door mode");
+      digitalWrite(led, !digitalRead(led));
     }
     else if (currentMode == MODE_CONTROL_DOOR) {
+      digitalWrite(led, !digitalRead(led));
+      delay(500);
+      digitalWrite(led, !digitalRead(led));
+
       apiRequest(id_cartao);
+
+      digitalWrite(led, !digitalRead(led));
+      delay(500);
+      digitalWrite(led, !digitalRead(led));
     }
 
 
