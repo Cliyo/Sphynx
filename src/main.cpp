@@ -86,9 +86,14 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
 void apiRequest(String tag){
   HTTPClient http;
 
-  Serial.println("http://sphynx-api.local:57128/accessRegisters");
+  IPAddress api;
 
-  http.begin("http://sphynx-api.local:57128/accessRegisters");
+  api = SphynxWiFi.getApiAddress();
+
+  String apiUrl = "http://" + api.toString() + ":57128/accessRegisters";
+  http.begin(apiUrl);
+
+  Serial.println(apiUrl);
 
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Access-Control-Allow-Credentials", "true");
@@ -99,7 +104,6 @@ void apiRequest(String tag){
   Serial.println(SphynxWiFi.getMac());
 
   int httpResponseCode = http.POST(json);
-  Serial.println(json);
 
   if(httpResponseCode > 0) {
     String payload = http.getString();
@@ -124,8 +128,6 @@ void receiveTag(){
       id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
     }
     id_cartao.toUpperCase();
-
-    Serial.println(currentMode);
 
     if (currentMode == MODE_REGISTER_TAG) {
       ws.textAll(id_cartao);
@@ -194,5 +196,5 @@ void loop(){
 
   receiveTag();
   
-  delay(2000);
+  delay(1000);
 }
