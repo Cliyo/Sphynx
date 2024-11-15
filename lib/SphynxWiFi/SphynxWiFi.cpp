@@ -420,6 +420,7 @@ IPAddress SphynxWiFiClass::getApiAddress(){
         udp.onPacket([&](AsyncUDPPacket packet) {
             senderIP = packet.remoteIP();
             packetReceived = true;
+            udp.close();
         });
         udp.print(message);
     } else {
