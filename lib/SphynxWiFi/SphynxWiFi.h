@@ -13,6 +13,7 @@
 #include <ESPmDNS.h>
 #include "ESPAsyncWebServer.h"
 #include <Preferences.h>
+#include "AsyncUDP.h"
 
 class SphynxWiFiClass
 {

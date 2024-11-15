@@ -275,6 +275,9 @@ String indexHtml;
 String ssid;
 String senha;
 bool statusConexao = false;
+IPAddress multicastIP(239, 255, 255, 250);
+uint16_t multicastPort = 57127;
+AsyncUDP udp;
 
 SphynxWiFiClass::SphynxWiFiClass(){}
 
@@ -409,22 +412,35 @@ bool SphynxWiFiClass::conectado() {
 
 IPAddress SphynxWiFiClass::getApiAddress(){
     IPAddress zero(0,0,0,0);
+    IPAddress senderIP = zero;
+    bool packetReceived = false;
 
-    if(mdns_init() == ESP_OK){
+    if (udp.listenMulticast(multicastIP, multicastPort)) {
+        const char message[27] = "Request Sphynx API Address";
+        udp.onPacket([&](AsyncUDPPacket packet) {
+            senderIP = packet.remoteIP();
+            packetReceived = true;
+        });
+        udp.print(message);
+    } else {
+        Serial.println("Failed to send multicast packet");
+    }
 
+    delay(1000);
+
+    if (!packetReceived && mdns_init() == ESP_OK) {
+        Serial.println("MDNS query");
         int services = MDNS.queryService("cliyo-sphynx", "tcp");
-
         if (services > 0) {
             for (int i = 0; i < services; ++i) {
-                if (MDNS.hasTxt(i, "Sphynx API")){
+                if (MDNS.hasTxt(i, "Sphynx API")) {
                     return MDNS.IP(i);
                 }
             }
         }
     }
-    
 
-    return zero;
+    return packetReceived ? senderIP : zero;
 }
 
 String SphynxWiFiClass::getMac(){
