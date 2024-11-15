@@ -93,15 +93,15 @@ void apiRequest(String tag){
   String apiUrl = "http://" + api.toString() + ":57128/accessRegisters";
   http.begin(apiUrl);
 
-  Serial.println(apiUrl);
-
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Access-Control-Allow-Credentials", "true");
   http.addHeader("Access-Control-Allow-Origin", "*");
 
+  http.setConnectTimeout(10000);
+
   String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\""+tag+"\"}";
 
-  Serial.println(SphynxWiFi.getMac());
+  Serial.println(json);
 
   int httpResponseCode = http.POST(json);
 
