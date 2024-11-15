@@ -276,7 +276,8 @@ String ssid;
 String senha;
 bool statusConexao = false;
 IPAddress multicastIP(239, 255, 255, 250);
-uint16_t multicastPort = 57127;
+uint16_t multicastPort = 57128;
+uint16_t finderPort = 57127;
 AsyncUDP udp;
 
 SphynxWiFiClass::SphynxWiFiClass(){}
@@ -323,6 +324,7 @@ bool SphynxWiFiClass::connect() {
 
         if (WiFi.status() == WL_CONNECTED){
             setMDNS(hostname);
+            finder();
             statusConexao = true;
         }
         return true;
@@ -467,4 +469,25 @@ void SphynxWiFiClass::setMDNS(String hostname){
         {"mac",mac.c_str()}
     };
     mdns_service_add("sphynx-device", "_cliyo-sphynx", "_tcp", 80, serviceTxtData, 3);
+}
+
+void SphynxWiFiClass::finder() {
+    const char expectedMessage[21] = "Sphynx Device Finder";
+
+    udp.listenMulticast(multicastIP, finderPort);
+
+    udp.onPacket([expectedMessage](AsyncUDPPacket packet) {
+        const char* data = (const char*)packet.data();
+        char message[21];
+        strncpy(message, data, 20);
+        message[20] = '\0';
+
+        if (strcmp(message, expectedMessage) == 0) {
+            Serial.println("Sphynx Device found");
+            String json = "{\"ip\":\"" + WiFi.localIP().toString() + "\",\"mac\":\"" + WiFi.macAddress() + "\"}";
+            const char* deviceData = json.c_str();
+            Serial.println(deviceData);
+            packet.print(json);
+        }
+    });
 }

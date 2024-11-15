@@ -32,6 +32,7 @@ class SphynxWiFiClass
         void saveCredentials(bool conectar);
         void getCredentials();
         void setMDNS(String hostname);
+        void finder();
 };
 extern SphynxWiFiClass SphynxWiFi;
 #endif
