@@ -412,7 +412,7 @@ IPAddress SphynxWiFiClass::getApiAddress(){
 
     if(mdns_init() == ESP_OK){
 
-        int services = MDNS.queryService("http", "tcp");
+        int services = MDNS.queryService("cliyo-sphynx", "tcp");
 
         if (services > 0) {
             for (int i = 0; i < services; ++i) {
