@@ -32,6 +32,16 @@ void SphynxFingerClass::setupSensor() {
             }
         }
     }
+
+
+    finger.getParameters();
+    Serial.print("Fingerprint sensor Status Register:"); Serial.println(finger.status_reg);
+    Serial.print("Fingerprint sensor system id: "); Serial.println(finger.system_id);
+    Serial.print("Fingerprint sensor capacity: "); Serial.println(finger.capacity);
+    Serial.print("Fingerprint sensor security level: "); Serial.println(finger.security_level);
+    Serial.print("Fingerprint sensor device address: "); Serial.println(finger.device_addr);
+    Serial.print("Fingerprint sensor packet lenght: "); Serial.println(finger.packet_len);
+    Serial.print("Fingerprint sensor baud rate: "); Serial.println(finger.baud_rate);
 }
 
 uint8_t SphynxFingerClass::createModel() {
