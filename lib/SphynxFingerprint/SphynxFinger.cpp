@@ -90,6 +90,36 @@ uint8_t SphynxFingerClass::createModel() {
     return status;
 }
 
+
+bool SphynxFingerClass::verifyFinger() {
+    finger.getTemplateCount();
+    Serial.print("Fingers enrolled: "); Serial.println(finger.templateCount);
+
+    status = finger.getImage();
+    if (status == FINGERPRINT_NOFINGER) {
+        return false;
+    }
+    else if (status != FINGERPRINT_OK) {
+        Serial.println("Falha ao ler a impressão digital");
+        return false;
+    }
+
+    status = finger.image2Tz();
+    if (status != FINGERPRINT_OK) {
+        Serial.println("Falha ao converter a imagem");
+        return false;
+    }
+
+    status = finger.fingerFastSearch();
+    if (status != FINGERPRINT_OK) {
+        Serial.println("Falha ao procurar a impressão digital");
+        return false;
+    }
+
+    Serial.println("Impressão digital encontrada");
+    return true;
+}
+
 uint8_t SphynxFingerClass::enrollFinger() {
     status = createModel();
     if (status != FINGERPRINT_OK) {
