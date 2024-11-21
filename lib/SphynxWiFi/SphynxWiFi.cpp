@@ -483,8 +483,8 @@ void SphynxWiFiClass::finder() {
         message[20] = '\0';
 
         if (strcmp(message, expectedMessage) == 0) {
-            Serial.println("Sphynx Device found");
-            String json = "{\"ip\":\"" + WiFi.localIP().toString() + "\",\"mac\":\"" + WiFi.macAddress() + "\"}";
+            Serial.println("Sphynx Device found by: " + packet.remoteIP().toString());
+            String json = WiFi.localIP().toString() +","+ WiFi.macAddress();
             const char* deviceData = json.c_str();
             Serial.println(deviceData);
             packet.print(json);
