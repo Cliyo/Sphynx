@@ -1,8 +1,8 @@
-#include <Arduino.h>
 #include "SphynxWiFi.h"
+#include "SphynxFinger.h"
 #include "ESPAsyncWebServer.h"
 #include <HTTPClient.h>
-#include <Arduino_JSON.h>
+#include <ArduinoJson.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -32,6 +32,7 @@ AsyncWebSocket ws("/ws");
 enum Mode {
   MODE_CONTROL_DOOR,
   MODE_REGISTER_TAG,
+  MODE_ENROLL_FINGERPRINT,
 };
 
 Mode currentMode = MODE_CONTROL_DOOR;
@@ -70,7 +71,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
     Serial.println("Client disconnected");
   }
   else if(type == WS_EVT_DATA){
-    String message = (const char *)data;
+    message = (const char *)data;
 
     if (message.substring(0, 4) == "data") {
       ws.text(client->id(), "data");
@@ -80,17 +81,29 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
       Serial.println("Register Tag mode begin");
       digitalWrite(led, !digitalRead(led));
     }
+    else if (message.substring(0, 6) == "finger") {
+      if (currentMode == MODE_ENROLL_FINGERPRINT){
+        client->close();
+        return;
+      }
+      currentMode = MODE_ENROLL_FINGERPRINT;
+      Serial.println("Enroll Fingerprint mode begin");
+      digitalWrite(led, !digitalRead(led));
+    }
   }
 }
 
-void apiRequest(String tag){
-  HTTPClient http;
-
+void apiRequest(String json, String method){
   IPAddress api;
+  HTTPClient http;
 
   api = SphynxWiFi.getApiAddress();
 
-  String apiUrl = "http://" + api.toString() + ":57128/accessRegisters";
+  Serial.println(api.toString());
+
+  String apiUrl = "http://" + api.toString() + ":57128/accessRegisters/" + method;
+
+  Serial.println(apiUrl);
   http.begin(apiUrl);
 
   http.addHeader("Content-Type", "application/json");
@@ -98,8 +111,6 @@ void apiRequest(String tag){
   http.addHeader("Access-Control-Allow-Origin", "*");
 
   http.setConnectTimeout(10000);
-
-  String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\""+tag+"\"}";
 
   Serial.println(json);
 
@@ -112,12 +123,95 @@ void apiRequest(String tag){
   } 
   
   else {
-    Serial.println("Error on HTTP request");
     Serial.println(http.errorToString(httpResponseCode).c_str());
     Serial.println(httpResponseCode);
   }
 
   http.end();
+}
+
+void apiRequestWithTag(String tag){
+  String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\""+tag+"\"}";
+
+  apiRequest(json, "tag");
+}
+
+void apiRequestWithFingerTemplate(uint8_t* fingerTemplate){
+  JsonDocument doc;
+
+  doc["mac"] = SphynxWiFi.getMac();
+
+    doc["fingerprint"].to<JsonArray>();
+    
+  for (int k = 0; k < 4; k++) {
+      for (int l = 0; l < 128; l++) {
+          doc["fingerprint"].add(fingerTemplate[(k * 128) + l]);
+      }
+  }
+
+  String json;
+  serializeJson(doc, json);
+
+  apiRequest(json, "fingerprint");
+}
+
+void apiRequestWithFingerTemplate(uint16_t fingerID){
+  JsonDocument doc;
+
+  doc["mac"] = SphynxWiFi.getMac();
+
+  doc["fingerprint"] = fingerID;
+
+  String json;
+  serializeJson(doc, json);
+
+  apiRequest(json, "fingerprint");
+}
+
+void readFingerprint() {
+  uint16_t match = 0;
+  switch (currentMode)
+  {
+    case MODE_CONTROL_DOOR:
+      match = SphynxFinger.verifyFinger(uint8_t(1));
+
+      if (match != 0) {
+        Serial.println("Fingerprint match");
+        Serial.println(match);
+        digitalWrite(led, !digitalRead(led));
+        delay(500);
+        digitalWrite(led, !digitalRead(led));
+        apiRequestWithFingerTemplate(match);
+      }
+      break;
+    case MODE_ENROLL_FINGERPRINT:
+      Serial.println(message);
+
+      if (message.substring(6, 8) == "id") {
+        boolean enrolled = false;
+        uint16_t fingerID = message.substring(8,9).toInt();
+        enrolled = SphynxFinger.enrollFingerLocal(fingerID);
+        digitalWrite(led, !digitalRead(led));
+        ws.textAll(enrolled ? "true" : "false");
+        currentMode = MODE_CONTROL_DOOR;
+
+      } else {
+        uint8_t* fingerTemplate = nullptr;
+        fingerTemplate = SphynxFinger.enrollFinger();
+        
+        if (fingerTemplate != nullptr) {
+          uint8_t* fingerTemplate = nullptr;
+          fingerTemplate = SphynxFinger.enrollFinger();
+          String fingerTemplateStr = String((char*)fingerTemplate);
+          Serial.println(fingerTemplateStr);
+          ws.textAll(fingerTemplateStr);
+          digitalWrite(led, !digitalRead(led));
+          currentMode = MODE_CONTROL_DOOR;
+        }
+      }
+    default:
+      break;
+  }
 }
 
 void receiveTag(){
@@ -128,6 +222,8 @@ void receiveTag(){
       id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
     }
     id_cartao.toUpperCase();
+
+    Serial.println("Tag readed: " + id_cartao);
 
     if (currentMode == MODE_REGISTER_TAG) {
       ws.textAll(id_cartao);
@@ -141,7 +237,7 @@ void receiveTag(){
       delay(500);
       digitalWrite(led, !digitalRead(led));
 
-      apiRequest(id_cartao);
+      apiRequestWithTag(id_cartao);
 
       digitalWrite(led, !digitalRead(led));
       delay(500);
@@ -175,7 +271,7 @@ void sphynx(){
 }
 
 void setup(){
-  Serial.begin(115200);
+  Serial.begin(57600);
   if (!SphynxWiFi.connect()) {
     SphynxWiFi.setupWiFi();
   }
@@ -183,16 +279,16 @@ void setup(){
     delay(500);
     continue;
   }
+
+  SphynxFinger.setupSensor();
+
   sphynx();
 }
 
 void loop(){
-  // while (api[0] == 0){
-  //   api = SphynxWiFi.getApiAddress();
-  // }
-
-  // Serial.print("RC522 ");
-  // rfid.PCD_DumpVersionToSerial();
+  if (SphynxFinger.sensorFound) {
+    readFingerprint();
+  }
 
   receiveTag();
   
