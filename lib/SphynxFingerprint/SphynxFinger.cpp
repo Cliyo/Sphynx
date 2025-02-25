@@ -11,61 +11,53 @@
 uint8_t status;
 int length;
 
-bool sensorFound = false;
+uint8_t fingerTemplate[512];
 
 SphynxFingerClass::SphynxFingerClass(){}
 
 void SphynxFingerClass::setupSensor() {
-    Serial2.begin(57600, SERIAL_8N1, TXD2, RXD2);
+    Serial2.begin(115200, SERIAL_8N1, TXD2, RXD2);
+    finger.begin(115200);
 
-    finger.begin(57600);
     if (finger.verifyPassword()) {
-        Serial.println("Sensor encontrado");
+        finger.getParameters();
         sensorFound = true;
     } else {
-        Serial.println("Sensor não encontrado");
+        Serial.println("Did not find fingerprint sensor :(");
         for (int i = 0; i < 10; i++) {
             delay(1000);
-            setupSensor();
+            Serial2.begin(115200, SERIAL_8N1, TXD2, RXD2);
+            finger.begin(115200);
             if (sensorFound) {
+                finger.getParameters();
+                sensorFound = true;
                 break;
             }
         }
+        Serial.println("No sensor found");
     }
-
-
-    finger.getParameters();
-    Serial.print("Fingerprint sensor Status Register:"); Serial.println(finger.status_reg);
-    Serial.print("Fingerprint sensor system id: "); Serial.println(finger.system_id);
-    Serial.print("Fingerprint sensor capacity: "); Serial.println(finger.capacity);
-    Serial.print("Fingerprint sensor security level: "); Serial.println(finger.security_level);
-    Serial.print("Fingerprint sensor device address: "); Serial.println(finger.device_addr);
-    Serial.print("Fingerprint sensor packet lenght: "); Serial.println(finger.packet_len);
-    Serial.print("Fingerprint sensor baud rate: "); Serial.println(finger.baud_rate);
+    delay(500);
 }
 
 uint8_t SphynxFingerClass::createModel() {
-    Serial.println("Lendo impressão digital pela primeira vez...");
     status = 2;
+    Serial.println("Insira dedo");
     while (status == FINGERPRINT_NOFINGER) {
         status = finger.getImage();
     }
     if (status != FINGERPRINT_OK && status != FINGERPRINT_NOFINGER) {
-        Serial.println("Falha ao ler a impressão digital");
         return status;
     }
 
-    Serial.println("Convertendo primeira imagem...");
+    Serial.println("Convertendo imagem");
     status = finger.image2Tz(uint8_t(1));
     if (status != FINGERPRINT_OK) {
-        Serial.println("Falha ao converter a primeira imagem");
         return status;
     }
-    Serial.println("Remova o dedo");
 
+    Serial.println("Remova o dedo");
     delay(2000);
 
-    Serial.println("Lendo impressão digital pela segunda vez...");
     while (status != FINGERPRINT_NOFINGER) {
         status = finger.getImage();
         delay(100);
@@ -73,86 +65,147 @@ uint8_t SphynxFingerClass::createModel() {
 
     delay(500);
 
+    Serial.println("Insira o mesmo dedo novamente");
     while (status == FINGERPRINT_NOFINGER) {
         status = finger.getImage();
     }
     if (status != FINGERPRINT_OK && status != FINGERPRINT_NOFINGER) {
-        Serial.println("Falha ao ler a impressão digital");
         return status;
     }
 
-    Serial.println("Convertendo segunda imagem...");
+    Serial.println("Convertendo imagem");
     status = finger.image2Tz(uint8_t(2));
     if (status != FINGERPRINT_OK) {
-        Serial.println("Falha ao converter a segunda imagem");
         return status;
     }
 
-    Serial.println("Comparando as imagens...");
+    Serial.println("Criando modelo");
     status = finger.createModel();
-    if (status == FINGERPRINT_OK) {
-        Serial.println("Modelo criado com sucesso");
-    } else {
-        Serial.println("Falha ao criar o modelo");
-        return status;
-    }
 
     return status;
 }
 
-
-bool SphynxFingerClass::verifyFinger() {
-    finger.getTemplateCount();
-    Serial.print("Fingers enrolled: "); Serial.println(finger.templateCount);
-
+uint8_t* SphynxFingerClass::verifyFinger() {
+    setupSensor();
+    
+    clearUART2();
+    
     status = finger.getImage();
     if (status == FINGERPRINT_NOFINGER) {
-        return false;
+        return nullptr;
     }
     else if (status != FINGERPRINT_OK) {
-        Serial.println("Falha ao ler a impressão digital");
-        return false;
+        return nullptr;
     }
 
     status = finger.image2Tz();
     if (status != FINGERPRINT_OK) {
-        Serial.println("Falha ao converter a imagem");
-        return false;
+        return nullptr;
     }
 
-    status = finger.fingerFastSearch();
+    status = finger.createModel();
     if (status != FINGERPRINT_OK) {
-        Serial.println("Falha ao procurar a impressão digital");
-        return false;
+        return nullptr;
     }
 
-    Serial.println("Impressão digital encontrada");
-    return true;
+    status = finger.getModel();
+    if (status != FINGERPRINT_OK) {
+        return nullptr;
+    }
+
+    uint8_t* fingerTemplate = generateTemplate();
+
+    return fingerTemplate;
 }
 
-uint8_t SphynxFingerClass::enrollFinger() {
+uint8_t SphynxFingerClass::verifyFinger(uint8_t id) {
+    setupSensor();
+    
+    clearUART2();
+
+    uint8_t p = finger.getImage();
+    if (p == FINGERPRINT_NOFINGER) {
+        return 0;
+    } else if (p != FINGERPRINT_OK) {
+        Serial.println("Erro ao capturar imagem");
+        return 0;
+    }
+
+    // OK success!
+
+    p = finger.image2Tz();
+    if (p != FINGERPRINT_OK) {
+        Serial.println("Erro ao converter imagem");
+        return 0;
+    }
+
+    // OK converted!
+    p = finger.fingerSearch();
+    if (p == FINGERPRINT_OK) {
+        Serial.println("Found a print match!");
+    } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
+        Serial.println("Communication error");
+        return 0;
+    } else if (p == FINGERPRINT_NOTFOUND) {
+        Serial.println("Did not find a match");
+        return 0;
+    } else {
+        Serial.println("Unknown error");
+        return 0;
+    }
+
+    // found a match!
+    Serial.print("Found ID #"); Serial.print(finger.fingerID);
+    Serial.print(" with confidence of "); Serial.println(finger.confidence);
+
+    return finger.fingerID;
+}
+
+uint8_t* SphynxFingerClass::enrollFinger() {
     status = createModel();
     if (status != FINGERPRINT_OK) {
-        Serial.println("Falha ao criar o modelo");
-        return status;
+        return &status;
     }
 
     status = finger.storeModel(uint16_t(1));
-    if (status == FINGERPRINT_OK) {
-        Serial.println("Modelo armazenado com sucesso");
-    } else {
-        Serial.println("Falha ao armazenar o modelo");
+    if (status != FINGERPRINT_OK) {
+        return &status;
     }
+        
 
     status = finger.loadModel(uint16_t(1));
-    if (status == FINGERPRINT_OK) {
-        Serial.println("Modelo carregado com sucesso");
-    } else {
-        Serial.println("Falha ao carregar o modelo");
-        return status;
-    }
+    if (status != FINGERPRINT_OK) {
+        return &status;
+    } 
 
     finger.getModel();
+
+    uint8_t* fingerTemplate = generateTemplate();
+
+    delay(2000);
+
+    clearUART2();
+
+    finger.emptyDatabase();
+
+    return fingerTemplate;
+}
+
+uint8_t* SphynxFingerClass::generateTemplate() {
+
+    // if (finger.get_template_buffer(512, fingerTemplate) != FINGERPRINT_OK){
+    //     Serial.println("Error: get_template_buffer");
+    // };
+
+    // finger.getParameters();
+
+    // for (int k = 0; k < 4; k++) {
+    //   for (int l = 0; l < 128; l++) {
+    //     Serial.print(fingerTemplate[(k * 128) + l], HEX);
+    //     Serial.print(",");
+    //   }
+    //   Serial.println("");
+    // }
 
     //using the template from adafruit
     uint8_t bytesReceived[534];
@@ -168,7 +221,7 @@ uint8_t SphynxFingerClass::enrollFinger() {
     Serial.print(i); Serial.println(" bytes read.");
     Serial.println("Decoding packet...");
 
-    uint8_t fingerTemplate[512];
+    uint8_t* fingerTemplate = new u_int8_t[512];
     memset(fingerTemplate, 0xff, 512);
 
     int uindx = 9, index = 0;
@@ -179,17 +232,31 @@ uint8_t SphynxFingerClass::enrollFinger() {
     index += 256;
     memcpy(fingerTemplate + index, bytesReceived + uindx, 256);
 
-    for (int i = 0; i < 512; ++i) {
+    for (int i = 0; i < 512; i++) {
         printHex(fingerTemplate[i], 2);
+    }
+
+    return fingerTemplate;
+}
+
+boolean SphynxFingerClass::enrollFingerLocal(uint16_t id) {
+    status = createModel();
+    if (status != FINGERPRINT_OK) {
+        Serial.println("Erro ao criar modelo");
+        return false;
+    }
+
+    Serial.println("Armazenando modelo no id: " + String(id));
+    status = finger.storeModel(id);
+    if (status != FINGERPRINT_OK) {
+        return false;
     }
 
     delay(2000);
 
     clearUART2();
 
-    // finger.emptyDatabase();
-
-    return status;
+    return true;
 }
 
 void SphynxFingerClass::clearUART2() {

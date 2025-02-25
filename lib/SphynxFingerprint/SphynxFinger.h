@@ -18,14 +18,17 @@ class SphynxFingerClass {
     public:
         SphynxFingerClass();
         void setupSensor();
-        uint8_t enrollFinger();
-        void enrollFingerLocal();
-        bool verifyFinger();
+        uint8_t* enrollFinger();
+        boolean enrollFingerLocal(uint16_t id);
+        uint8_t* verifyFinger();
+        uint8_t verifyFinger(uint8_t id = 1);
         Adafruit_Fingerprint finger = Adafruit_Fingerprint(&Serial2);
+        boolean sensorFound = false;
     private:
         void printHex(int num, int precision);
         uint8_t createModel();
         void clearUART2();
+        uint8_t* generateTemplate();
 };
 
 extern SphynxFingerClass SphynxFinger;
