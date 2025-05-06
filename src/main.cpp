@@ -93,7 +93,7 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   }
 }
 
-void apiRequest(String json, String method){
+void apiRequest(String json, String method, String subMethod){
   IPAddress api;
   HTTPClient http;
 
@@ -101,7 +101,7 @@ void apiRequest(String json, String method){
 
   Serial.println(api.toString());
 
-  String apiUrl = "http://" + api.toString() + ":57128/accessRegisters/" + method;
+  String apiUrl = "http://" + api.toString() + ":57128/"+ method + "/" + subMethod;
 
   Serial.println(apiUrl);
   http.begin(apiUrl);
@@ -133,7 +133,7 @@ void apiRequest(String json, String method){
 void apiRequestWithTag(String tag){
   String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\""+tag+"\"}";
 
-  apiRequest(json, "tag");
+  apiRequest(json, "accessRegisters" ,"tag");
 }
 
 void apiRequestWithFingerTemplate(uint8_t* fingerTemplate){
@@ -152,7 +152,7 @@ void apiRequestWithFingerTemplate(uint8_t* fingerTemplate){
   String json;
   serializeJson(doc, json);
 
-  apiRequest(json, "fingerprint");
+  apiRequest(json, "accessRegisters","fingerprint");
 }
 
 void apiRequestWithFingerTemplate(uint16_t fingerID){
@@ -165,7 +165,7 @@ void apiRequestWithFingerTemplate(uint16_t fingerID){
   String json;
   serializeJson(doc, json);
 
-  apiRequest(json, "fingerprint");
+  apiRequest(json, "accessRegisters", "fingerprint");
 }
 
 void readFingerprint() {
@@ -225,6 +225,8 @@ void receiveTag(){
 
     Serial.println("Tag readed: " + id_cartao);
 
+    id_cartao = id_cartao.substring(1);
+
     if (currentMode == MODE_REGISTER_TAG) {
       ws.textAll(id_cartao);
       Serial.println("Tag registering completed");
@@ -249,6 +251,13 @@ void receiveTag(){
     rfid.PCD_StopCrypto1();
   }
   
+}
+
+void reverseFinder() {
+  String json = WiFi.localIP().toString() +","+ WiFi.macAddress();
+  
+  apiRequest(json, "deviceFinder", "push");
+
 }
 
 void sphynx(){
@@ -286,6 +295,8 @@ void setup(){
 }
 
 void loop(){
+  reverseFinder();
+
   if (SphynxFinger.sensorFound) {
     readFingerprint();
   }
