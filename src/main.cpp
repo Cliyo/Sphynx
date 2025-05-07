@@ -267,7 +267,6 @@ void sphynx(){
   delay(2000);
 
   pinMode(acionador, OUTPUT);
-  pinMode(led, OUTPUT);
   pinMode(button, INPUT);
 
   Serial.print("RC522 ");
@@ -281,21 +280,26 @@ void sphynx(){
 
 void setup(){
   Serial.begin(57600);
+
+  pinMode(led, OUTPUT);
+
   if (!SphynxWiFi.connect()) {
     SphynxWiFi.setupWiFi();
   }
   while (!SphynxWiFi.conectado()){
+    digitalWrite(led, !digitalRead(led));
     delay(500);
     continue;
   }
-
-  SphynxFinger.setupSensor();
-
   sphynx();
 }
 
 void loop(){
-  reverseFinder();
+  static unsigned long lastReverseFinderTime = 0;
+  if (millis() - lastReverseFinderTime >= 5000) {
+    lastReverseFinderTime = millis();
+    reverseFinder();
+  }
 
   if (SphynxFinger.sensorFound) {
     readFingerprint();
