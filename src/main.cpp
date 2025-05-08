@@ -40,7 +40,9 @@ Mode currentMode = MODE_CONTROL_DOOR;
 void controlDoor(String message){
   if(message == "true"){
     digitalWrite(led, !digitalRead(led));
-    delay(1000);    
+    digitalWrite(acionador, HIGH);
+    delay(5000);
+    digitalWrite(acionador, LOW);
     digitalWrite(led, !digitalRead(led));
   }
   else if(message == "false"){
@@ -120,6 +122,11 @@ void apiRequest(String json, String method, String subMethod){
     String payload = http.getString();
     Serial.println(httpResponseCode);
     Serial.println(payload);
+    if (httpResponseCode == 200 && method == "accessRegisters") {
+      controlDoor("true");
+    } else if (httpResponseCode !=200 && method != "accessRegisters") {
+      controlDoor("false");
+    }
   } 
   
   else {
@@ -240,12 +247,7 @@ void receiveTag(){
       digitalWrite(led, !digitalRead(led));
 
       apiRequestWithTag(id_cartao);
-
-      digitalWrite(led, !digitalRead(led));
-      delay(500);
-      digitalWrite(led, !digitalRead(led));
     }
-
 
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
