@@ -107,8 +107,8 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   }
 }
 
-void apiRequest(String json, String method, String subMethod){
-  IPAddress api;
+bool apiRequest(String json, String method, String subMethod){
+  if (SphynxWiFi.APIAddress == "") return false;
   HTTPClient http;
 
   String apiUrl = "https://" + SphynxWiFi.APIAddress + "/"+ method + "/" + subMethod;
@@ -119,28 +119,49 @@ void apiRequest(String json, String method, String subMethod){
   http.addHeader("Access-Control-Allow-Credentials", "true");
   http.addHeader("Access-Control-Allow-Origin", "*");
 
-  http.setConnectTimeout(10000);
+  http.setConnectTimeout(3000);
 
   int httpResponseCode = http.POST(json);
+  bool serverContacted = false;
 
   if(httpResponseCode > 0) {
-    String payload = http.getString();
+    serverContacted = true;
+    
     if (httpResponseCode == 200 && method == "accessRegisters") {
       controlDoor(true);
-    } else if (httpResponseCode !=200 && method != "accessRegisters") {
+      
+      JsonDocument doc;
+      deserializeJson(doc, json);
+      if(doc.containsKey("tag")){
+         String t = doc["tag"];
+         OfflineDB.addAuthorizedTag(t); 
+      }
+
+    } else if (httpResponseCode != 200 && method != "accessRegisters") {
       controlDoor(false);
     }
-  } 
+  } else {
+    Serial.println(httpResponseCode);
+  }
   
-  Serial.println(httpResponseCode);
-
   http.end();
+  return serverContacted;
 }
 
 void apiRequestWithTag(String tag){
   String json = "{\"mac\":\""+SphynxWiFi.getMac()+"\",\"tag\":\""+tag+"\"}";
 
-  apiRequest(json, "accessRegisters" ,"tag");
+  bool online = apiRequest(json, "accessRegisters" ,"tag");
+
+  if (!online) {
+    Serial.println("API Offline -> Verificando Banco Local...");
+    if (OfflineDB.isTagAuthorized(tag)) {
+      Serial.println("Acesso Local Permitido!");
+      controlDoor(true);
+    } else {
+      controlDoor(false);
+    }
+  }
 }
 
 void apiRequestWithFingerTemplate(uint8_t* fingerTemplate){
