@@ -43,6 +43,8 @@ String message;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
+bool rfSensorFound = false;
+
 enum Mode {
   MODE_CONTROL_DOOR,
   MODE_REGISTER_TAG,
@@ -288,6 +290,8 @@ void receivePN532Tag() {
 #endif
 
 void receiveTag() {
+  if (!rfSensorFound) return;
+
   #ifdef USE_PN532
     receivePN532Tag();
   #else
@@ -307,15 +311,27 @@ void setupRFSensor() {
     nfc.begin();
     uint32_t versiondata = nfc.getFirmwareVersion();
     if (!versiondata) {
-      Serial.print("PN532 sensor not found!");
-      while (1);
+      Serial.println("PN532 not found");
+      rfSensorFound = false;
+    } else {
+      rfSensorFound = true;
+      Serial.print("PN532 ");
+      Serial.println((versiondata>>24) & 0xFF, HEX);
+      nfc.SAMConfig(); 
     }
-    nfc.SAMConfig();
   #else
     SPI.begin();
     rfid.PCD_Init();
-    Serial.print("RC522 ");
-    rfid.PCD_DumpVersionToSerial();
+    byte v = rfid.PCD_ReadRegister(rfid.VersionReg);
+    
+    if (v == 0x00 || v == 0xFF) {
+        Serial.println("RC522 not found");
+        rfSensorFound = false;
+    } else {
+        Serial.print("RC522 ");
+        Serial.println(v, HEX);
+        rfSensorFound = true;
+    }
   #endif
 }
 
