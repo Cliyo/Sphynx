@@ -7,8 +7,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <MFRC522.h>
+#include <Wire.h>
 #include <SPI.h>
+
+//Although the RC522 can read NFC tags
+//It cannot identify or decrypt dynamic uid
+//So we'll need PN532 for that
+
+//Comment out to use RC522
+#define USE_PN532
 
 #define SS_PIN 5
 #define RST_PIN 4
@@ -16,11 +23,18 @@
 #define MOSI_PIN  23  
 #define SCK_PIN   18
 
+#ifdef USE_PN532
+  #include <Adafruit_PN532.h>
+  Adafruit_PN532 nfc(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
+#else
+  #include <MFRC522.h>
+  MFRC522 rfid(SS_PIN, RST_PIN);
+#endif
+
+
 #define button 21
 
 #define led 2
-
-MFRC522 rfid(SS_PIN, RST_PIN);
 
 int acionador = 15;
 
@@ -138,7 +152,7 @@ void apiRequestWithFingerTemplate(uint8_t* fingerTemplate){
 
   doc["mac"] = SphynxWiFi.getMac();
 
-    doc["fingerprint"].to<JsonArray>();
+  doc["fingerprint"].to<JsonArray>();
     
   for (int k = 0; k < 4; k++) {
       for (int l = 0; l < 128; l++) {
@@ -211,19 +225,7 @@ void readFingerprint() {
   }
 }
 
-void receiveTag(){
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-    String id_cartao = "";
-    for (byte i = 0; i < rfid.uid.size; i++) {
-      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
-      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
-    }
-    id_cartao.toUpperCase();
-
-    Serial.println("Tag readed: " + id_cartao);
-
-    id_cartao = id_cartao.substring(1);
-
+void handleTag(String id_cartao) {
     if (currentMode == MODE_REGISTER_TAG) {
       ws.textAll(id_cartao);
       Serial.println("Tag registering completed");
@@ -238,11 +240,59 @@ void receiveTag(){
 
       apiRequestWithTag(id_cartao);
     }
+}
+
+#ifndef USE_PN532
+void receiveRC522Tag(){
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+    String id_cartao = "";
+    for (byte i = 0; i < rfid.uid.size; i++) {
+      id_cartao.concat(String(rfid.uid.uidByte[i] < 0x10 ? " 0" : " "));
+      id_cartao.concat(String(rfid.uid.uidByte[i], HEX));
+    }
+    id_cartao.toUpperCase();
+
+    id_cartao = id_cartao.substring(1);
+
+    handleTag(id_cartao);
 
     rfid.PICC_HaltA();
     rfid.PCD_StopCrypto1();
   }
   
+}
+#endif
+
+#ifdef USE_PN532
+void receivePN532Tag() {
+  uint8_t success;
+  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t uidLength;
+
+  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 50);
+
+  if (success) {
+    String id_cartao = "";
+    for (uint8_t i = 0; i < uidLength; i++) {
+      id_cartao.concat(String(uid[i] < 0x10 ? " 0" : " "));
+      id_cartao.concat(String(uid[i], HEX));
+    }
+    id_cartao.toUpperCase();
+    id_cartao = id_cartao.substring(1); 
+
+    handleTag(id_cartao);
+
+    delay(500); 
+  }
+}
+#endif
+
+void receiveTag() {
+  #ifdef USE_PN532
+    receivePN532Tag();
+  #else
+    receiveRC522Tag();
+  #endif
 }
 
 void reverseFinder() {
@@ -252,22 +302,21 @@ void reverseFinder() {
 
 }
 
-void sphynx(){
-  Serial.println("Sphynx Begun");
-  SPI.begin();
-  rfid.PCD_Init();
-  delay(2000);
-
-  pinMode(acionador, OUTPUT);
-  pinMode(button, INPUT);
-
-  Serial.print("PCD Version: ");
-  rfid.PCD_DumpVersionToSerial();
-
-  ws.onEvent(onWsEvent);
-  server.addHandler(&ws);
-
-  server.begin();
+void setupRFSensor() {
+  #ifdef USE_PN532
+    nfc.begin();
+    uint32_t versiondata = nfc.getFirmwareVersion();
+    if (!versiondata) {
+      Serial.print("PN532 sensor not found!");
+      while (1);
+    }
+    nfc.SAMConfig();
+  #else
+    SPI.begin();
+    rfid.PCD_Init();
+    Serial.print("RC522 ");
+    rfid.PCD_DumpVersionToSerial();
+  #endif
 }
 
 void setup(){
@@ -283,7 +332,17 @@ void setup(){
     delay(500);
     continue;
   }
-  sphynx();
+
+  setupRFSensor();
+  delay(2000);
+
+  pinMode(acionador, OUTPUT);
+  pinMode(button, INPUT);
+
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
+
+  server.begin();
 }
 
 void loop(){
@@ -299,5 +358,5 @@ void loop(){
 
   receiveTag();
   
-  delay(500);
+  delay(10);
 }
