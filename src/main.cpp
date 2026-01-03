@@ -95,11 +95,15 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
       ws.text(client->id(), "data");
     }
     else if (message.substring(0, 4) == "tags") {
+      if (!rfSensorFound) return;
+
       currentMode = MODE_REGISTER_TAG;
       Serial.println("Register Tag mode begin");
       digitalWrite(led, !digitalRead(led));
     }
     else if (message.substring(0, 6) == "finger") {
+      if (!SphynxFinger.sensorFound) return;
+
       if (currentMode == MODE_ENROLL_FINGERPRINT){
         client->close();
         return;
