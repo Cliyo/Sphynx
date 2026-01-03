@@ -389,7 +389,7 @@ void SphynxWiFiClass::scan() {
   }
   indexHtml = html + linhas + htmlFooter;
   linhas = "";
-  request->send_P(200, "text/html", indexHtml.c_str());
+  request->send(200, "text/html", indexHtml.c_str());
   });
 }
 
@@ -412,7 +412,11 @@ bool SphynxWiFiClass::conectado() {
     return statusConexao;
 }
 
-IPAddress SphynxWiFiClass::getApiAddress(){
+void SphynxWiFiClass::getApiAddress(){
+    if (APIAddress != "") {
+        return;
+    }
+
     IPAddress zero(0,0,0,0);
     IPAddress senderIP = zero;
     bool packetReceived = false;
@@ -437,13 +441,15 @@ IPAddress SphynxWiFiClass::getApiAddress(){
         if (services > 0) {
             for (int i = 0; i < services; ++i) {
                 if (MDNS.hasTxt(i, "Sphynx API")) {
-                    return MDNS.IP(i);
+                    APIAddress = MDNS.IP(i).toString() + ":57128";
                 }
             }
         }
     }
 
-    return packetReceived ? senderIP : zero;
+    if (packetReceived) {
+        APIAddress = senderIP.toString() + ":57128";
+    }
 }
 
 String SphynxWiFiClass::getMac(){

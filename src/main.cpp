@@ -111,9 +111,7 @@ void apiRequest(String json, String method, String subMethod){
   IPAddress api;
   HTTPClient http;
 
-  api = SphynxWiFi.getApiAddress();
-
-  String apiUrl = "http://" + api.toString() + ":57128/"+ method + "/" + subMethod;
+  String apiUrl = "https://" + SphynxWiFi.APIAddress + "/"+ method + "/" + subMethod;
 
   http.begin(apiUrl);
 
@@ -236,7 +234,7 @@ void handleTag(String id_cartao) {
       delay(500);
       digitalWrite(led, !digitalRead(led));
 
-      if (SphynxWiFi.conectado() && SphynxWiFi.getApiAddress() != IPAddress(0, 0, 0, 0)) {
+      if (SphynxWiFi.conectado() && SphynxWiFi.APIAddress != "") {
         apiRequestWithTag(id_cartao);
         return;
       }
@@ -372,6 +370,8 @@ void loop(){
       lastBlinkTime = millis();
       digitalWrite(led, !digitalRead(led));
     }
+  } else if (SphynxWiFi.APIAddress == "") {
+    SphynxWiFi.getApiAddress();
   }
 
   static unsigned short lastReverseFinderTime = 0;

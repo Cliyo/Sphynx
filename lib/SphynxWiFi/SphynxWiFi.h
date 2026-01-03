@@ -21,11 +21,12 @@ class SphynxWiFiClass
         SphynxWiFiClass();
         const char* ssidAP = "Sphynx-WIFI";
         const char* senhaAP = "12345678";
+        String APIAddress = "";
         void setupWiFi();
         bool connect();
         bool conectado();
         void saveCredentials(bool conectar, char* ssid, char* senha);
-        IPAddress getApiAddress();
+        void getApiAddress();
         String getMac();
     private:
         void scan();
