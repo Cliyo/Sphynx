@@ -101,11 +101,8 @@ void apiRequest(String json, String method, String subMethod){
 
   api = SphynxWiFi.getApiAddress();
 
-  Serial.println(api.toString());
-
   String apiUrl = "http://" + api.toString() + ":57128/"+ method + "/" + subMethod;
 
-  Serial.println(apiUrl);
   http.begin(apiUrl);
 
   http.addHeader("Content-Type", "application/json");
@@ -114,14 +111,10 @@ void apiRequest(String json, String method, String subMethod){
 
   http.setConnectTimeout(10000);
 
-  Serial.println(json);
-
   int httpResponseCode = http.POST(json);
 
   if(httpResponseCode > 0) {
     String payload = http.getString();
-    Serial.println(httpResponseCode);
-    Serial.println(payload);
     if (httpResponseCode == 200 && method == "accessRegisters") {
       controlDoor("true");
     } else if (httpResponseCode !=200 && method != "accessRegisters") {
@@ -129,10 +122,7 @@ void apiRequest(String json, String method, String subMethod){
     }
   } 
   
-  else {
-    Serial.println(http.errorToString(httpResponseCode).c_str());
-    Serial.println(httpResponseCode);
-  }
+  Serial.println(httpResponseCode);
 
   http.end();
 }
@@ -271,7 +261,7 @@ void sphynx(){
   pinMode(acionador, OUTPUT);
   pinMode(button, INPUT);
 
-  Serial.print("RC522 ");
+  Serial.print("PCD Version: ");
   rfid.PCD_DumpVersionToSerial();
 
   ws.onEvent(onWsEvent);
@@ -309,5 +299,5 @@ void loop(){
 
   receiveTag();
   
-  delay(1000);
+  delay(500);
 }
