@@ -1,3 +1,4 @@
+#include "OfflineDB.h"
 #include "SphynxWiFi.h"
 #include "SphynxFinger.h"
 #include "ESPAsyncWebServer.h"
@@ -53,15 +54,15 @@ enum Mode {
 
 Mode currentMode = MODE_CONTROL_DOOR;
 
-void controlDoor(String message){
-  if(message == "true"){
+void controlDoor(bool message){
+  if(message == true){
     digitalWrite(led, !digitalRead(led));
     digitalWrite(acionador, HIGH);
     delay(5000);
     digitalWrite(acionador, LOW);
     digitalWrite(led, !digitalRead(led));
   }
-  else if(message == "false"){
+  else if(message == false){
     digitalWrite(led, !digitalRead(led));
     delay(500);
     digitalWrite(led, !digitalRead(led));  
@@ -69,15 +70,6 @@ void controlDoor(String message){
     digitalWrite(led, !digitalRead(led));  
     delay(500);
     digitalWrite(led, !digitalRead(led));  
-  }
-}
-
-void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
-  AwsFrameInfo *info = (AwsFrameInfo*)arg;
-  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-    data[len] = 0;
-    message = (char*)data;
-    controlDoor(message);
   }
 }
 
@@ -136,9 +128,9 @@ void apiRequest(String json, String method, String subMethod){
   if(httpResponseCode > 0) {
     String payload = http.getString();
     if (httpResponseCode == 200 && method == "accessRegisters") {
-      controlDoor("true");
+      controlDoor(true);
     } else if (httpResponseCode !=200 && method != "accessRegisters") {
-      controlDoor("false");
+      controlDoor(false);
     }
   } 
   
@@ -244,7 +236,16 @@ void handleTag(String id_cartao) {
       delay(500);
       digitalWrite(led, !digitalRead(led));
 
-      apiRequestWithTag(id_cartao);
+      if (SphynxWiFi.conectado() && SphynxWiFi.getApiAddress() != IPAddress(0, 0, 0, 0)) {
+        apiRequestWithTag(id_cartao);
+        return;
+      }
+
+      if (OfflineDB.isTagAuthorized(id_cartao)) {
+        controlDoor(true);
+      } else {
+        controlDoor(false);
+      }
     }
 }
 
@@ -344,15 +345,12 @@ void setup(){
 
   pinMode(led, OUTPUT);
 
+  OfflineDB.begin();
+
   SphynxFinger.setupSensor();
 
   if (!SphynxWiFi.connect()) {
     SphynxWiFi.setupWiFi();
-  }
-  while (!SphynxWiFi.conectado()){
-    digitalWrite(led, !digitalRead(led));
-    delay(500);
-    continue;
   }
 
   setupRFSensor();
@@ -368,7 +366,15 @@ void setup(){
 }
 
 void loop(){
-  static unsigned long lastReverseFinderTime = 0;
+  if (!SphynxWiFi.conectado()) {
+    static unsigned short lastBlinkTime = 0;
+    if (millis() - lastBlinkTime >= 500) {
+      lastBlinkTime = millis();
+      digitalWrite(led, !digitalRead(led));
+    }
+  }
+
+  static unsigned short lastReverseFinderTime = 0;
   if (millis() - lastReverseFinderTime >= 5000) {
     lastReverseFinderTime = millis();
     reverseFinder();
