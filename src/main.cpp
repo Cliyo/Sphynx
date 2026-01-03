@@ -324,6 +324,8 @@ void setup(){
 
   pinMode(led, OUTPUT);
 
+  SphynxFinger.setupSensor();
+
   if (!SphynxWiFi.connect()) {
     SphynxWiFi.setupWiFi();
   }
