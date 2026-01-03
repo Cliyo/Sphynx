@@ -4,6 +4,10 @@ Preferences prefs;
 
 void OfflineDatabaseClass::begin() {
   prefs.begin(NAMESPACE, false); 
+
+  if (!prefs.isKey(TOKEN_KEY)) {
+    prefs.putString(TOKEN_KEY, "default_token");
+  }
 }
 
 void OfflineDatabaseClass::addAuthorizedTag(String tagID) {

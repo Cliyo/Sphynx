@@ -54,22 +54,23 @@ enum Mode {
 
 Mode currentMode = MODE_CONTROL_DOOR;
 
-void controlDoor(bool message){
-  if(message == true){
-    digitalWrite(led, !digitalRead(led));
+bool doorOpen = false;
+unsigned long openTime = 0;
+const unsigned long DOOR_OPEN_DURATION_MS = 5000;
+
+void controlDoor(bool abrir){
+  if(abrir){
+    digitalWrite(led, HIGH);
     digitalWrite(acionador, HIGH);
-    delay(5000);
-    digitalWrite(acionador, LOW);
-    digitalWrite(led, !digitalRead(led));
+    
+    doorOpen = true;
+    openTime = millis();
   }
-  else if(message == false){
-    digitalWrite(led, !digitalRead(led));
-    delay(500);
-    digitalWrite(led, !digitalRead(led));  
-    delay(500);
-    digitalWrite(led, !digitalRead(led));  
-    delay(500);
-    digitalWrite(led, !digitalRead(led));  
+  else {
+    for(int i=0; i<3; i++){
+       digitalWrite(led, !digitalRead(led));
+       delay(100); 
+    }
   }
 }
 
@@ -81,7 +82,37 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
     Serial.println("Client disconnected");
   }
   else if(type == WS_EVT_DATA){
-    message = (const char *)data;
+    char * tempMessage = (char *) malloc(len + 1);
+    memcpy(tempMessage, data, len);
+    tempMessage[len] = '\0';
+    String msgString = String(tempMessage);
+    free(tempMessage);
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, msgString);
+
+    if (!error) {
+      if (doc["auth"].is<const char*>()) {
+        String token = doc["auth"];
+        if (OfflineDB.validateToken(token)) {
+          String cmd = doc["command"].as<String>();
+          if (cmd == "open") {
+            controlDoor(true);
+            ws.text(client->id(), "{\"status\":\"success\"}");
+          }
+        } else {
+          ws.text(client->id(), "{\"status\":\"denied\"}");
+        }
+        return;
+      }
+      if (doc["set_token"].is<const char*>()) {
+        OfflineDB.setOfflineToken(doc["set_token"]);
+        ws.text(client->id(), "{\"status\":\"token_saved\"}");
+        return;
+      }
+    }
+
+    message = msgString;
 
     if (message.substring(0, 4) == "data") {
       ws.text(client->id(), "data");
@@ -132,7 +163,7 @@ bool apiRequest(String json, String method, String subMethod){
       
       JsonDocument doc;
       deserializeJson(doc, json);
-      if(doc.containsKey("tag")){
+      if(doc["tag"].is<const char*>()){
          String t = doc["tag"];
          OfflineDB.addAuthorizedTag(t); 
       }
@@ -362,6 +393,8 @@ void setupRFSensor() {
 void setup(){
   Serial.begin(57600);
 
+  pinMode(acionador, OUTPUT);
+  pinMode(button, INPUT);
   pinMode(led, OUTPUT);
 
   OfflineDB.begin();
@@ -373,10 +406,6 @@ void setup(){
   }
 
   setupRFSensor();
-  delay(2000);
-
-  pinMode(acionador, OUTPUT);
-  pinMode(button, INPUT);
 
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
@@ -385,6 +414,12 @@ void setup(){
 }
 
 void loop(){
+  if (doorOpen && (millis() - openTime >= DOOR_OPEN_DURATION_MS)) {
+    digitalWrite(acionador, LOW);
+    digitalWrite(led, LOW);
+    doorOpen = false;
+  }
+
   if (!SphynxWiFi.conectado()) {
     static unsigned short lastBlinkTime = 0;
     if (millis() - lastBlinkTime >= 500) {
